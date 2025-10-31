@@ -178,3 +178,6 @@ has_people/
 tmp.py
 test_.py
 *.tmp
+ipscan.py
+wled_ctl.py
+wled_fft.py
