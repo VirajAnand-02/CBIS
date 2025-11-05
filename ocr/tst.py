@@ -107,9 +107,9 @@ def extract_features(image_path, is_document=True, apply_enhancements=False):
 
 # Example Usage: Process a folder of images
 if __name__ == "__main__":
-    image_folder = "images/"
+    image_folder = "./"
     sample_images = [
-        "ocrtst-2.jpg",      # Printed text sample
+        "cal.png",      # Printed text sample
     ]
     
     for image_name in sample_images:

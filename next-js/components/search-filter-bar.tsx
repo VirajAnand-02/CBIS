@@ -247,8 +247,9 @@ export function SearchFilterBar({
         </Popover>
 
         {/* Search Button */}
-        <Button onClick={handleSearch} className="h-10 px-4">
-          Search
+        <Button onClick={handleSearch} className="h-10 px-4 gap-2">
+          <Search className="h-4 w-4" />
+          <span className="hidden sm:inline">Search</span>
         </Button>
       </div>
 
