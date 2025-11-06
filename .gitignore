@@ -184,3 +184,4 @@ test_.py
 ipscan.py
 wled_ctl.py
 wled_fft.py
+gemini_image_multilabel.py
