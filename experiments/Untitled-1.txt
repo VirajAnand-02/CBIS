@@ -1,0 +1,12 @@
+"is_document"
+ "is_handwritten"
+ "has_scene_text"
+"has_people_faces"
+ "is_screenshot"
+ "is_art_illustration"
+"has_machine_code"
+ "is_natural_image"
+ "is_nsfw"
+ "is_low_quality"
+
+ python pip install "tensorflow[and-cuda]<2.11"

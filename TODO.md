@@ -1,9 +1,22 @@
-## ✅ Supabase Database
+### IMPORTANT
+- Custom postgress vector search
+- Thresholding vector search custom
 
 ### TYPE_ROUTER
-- Data for type router v2  
-- Training program for type router v2  
-- Inference program for type router v2  
+- ✅ Data for type router v2  
+- ✅ Training program for type router v2  
+- ✅ Inference program for type router v2  
+- integrate into System
+
+---
+
+### Face detection and clustering
+- Face detection in scene (post pipeline queue based)
+- face location + embedding (ArcFace)
+- Database Shit
+- search strategy ?
+- Dockerize + GPU
+
 
 ---
 
@@ -16,16 +29,25 @@
 - ✅ API endpoint: `POST /api/search`  
 - ✅ Vector similarity search with pgvector  
 - ✅ Metadata filtering and NIMA quality filters  
+- - FAISS for simillarity search ??
 
 See `SEARCH_PIPELINE.md` for complete documentation.
 
 ---
 
 ### Sidebar stuff
-- Peoples (tagging) + UI in view modal  
-- Animals + UI in view modal  
+- ✅ Peoples (tagging) + UI in view modal  
+
+---
+
+### System
+- ✅ Dockerise Python microservices
 
 ---
 
 ### Document Clustering
-- ?
+- ✅ Get ocr working
+- Create the OCR Service
+- dockerize + GPU
+- database structure ?
+- Integrate into the workflow

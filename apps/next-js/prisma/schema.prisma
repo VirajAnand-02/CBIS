@@ -1,0 +1,235 @@
+generator client {
+  provider        = "prisma-client-js"
+  output          = "../lib/generated/prisma"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  directUrl  = env("DIRECT_URL")
+  extensions = [uuid_ossp(map: "uuid-ossp", schema: "extensions"), vector]
+}
+
+/// Main blob storage metadata table
+/// Stores metadata about uploaded images/documents
+model Blob {
+  id               String         @id @default(uuid())
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  filename         String
+  originalName     String?
+  mimeType         String
+  size             Int
+  width            Int?
+  height           Int?
+  storagePath      String
+  thumbnailPath    String?
+  uploadedBy       String?
+  uploadedFrom     String?
+  processingStatus String         @default("pending")
+  processingError  String?
+  blurhash         String?
+  attributes       BlobAttribute?
+  embeddings       Embedding?
+  ocrResults       OCRResult[]
+  faces            FaceInstance[]
+
+  @@index([createdAt])
+  @@index([processingStatus])
+  @@index([mimeType])
+  @@map("blobs")
+}
+
+/// CLIP embeddings for semantic search
+/// Supports vector similarity search using pgvector extension
+model Embedding {
+  id            String                @id @default(uuid())
+  createdAt     DateTime              @default(now())
+  blobId        String                @unique
+  vector        Unsupported("vector")
+  caption       String?
+  modelName     String                @default("openai/clip-vit-base-patch32")
+  modelVersion  String?
+  embeddingTime Float?
+  captionTime   Float?
+  device        String?
+  blob          Blob                  @relation(fields: [blobId], references: [id], onDelete: Cascade)
+
+  @@index([blobId])
+  @@map("embeddings")
+}
+
+/// Image type classification and attributes
+/// Results from Type Router service
+model BlobAttribute {
+  id               String   @id @default(uuid())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  blobId           String   @unique
+  isDocument       Boolean  @default(false)
+  hasPeople        Boolean  @default(false)
+  isScreenshot     Boolean  @default(false)
+  isAnimal         Boolean  @default(false)
+  documentProb     Float    @default(0.0)
+  peopleProb       Float    @default(0.0)
+  screenshotProb   Float    @default(0.0)
+  animalProb       Float    @default(0.0)
+  nimaScore        Float?
+  nimaTechnical    Float?
+  nimaAesthetic    Float?
+  nimaDistribution Json?
+  routerModel      String   @default("type_router_v1")
+  nimaModel        String?
+  blob             Blob     @relation(fields: [blobId], references: [id], onDelete: Cascade)
+
+  @@index([isDocument])
+  @@index([hasPeople])
+  @@index([isScreenshot])
+  @@index([isAnimal])
+  @@index([nimaScore])
+  @@map("blob_attributes")
+}
+
+/// OCR (Optical Character Recognition) results
+/// Extracted text from documents and images
+model OCRResult {
+  id             String   @id @default(uuid())
+  createdAt      DateTime @default(now())
+  blobId         String
+  text           String
+  language       String?
+  confidence     Float?
+  structuredData Json?
+  engine         String   @default("paddleocr")
+  engineVersion  String?
+  processingTime Float?
+  blob           Blob     @relation(fields: [blobId], references: [id], onDelete: Cascade)
+
+  @@index([blobId])
+  @@map("ocr_results")
+}
+
+/// Search history and analytics
+/// Track user searches for insights and improvements
+model SearchQuery {
+  id          String   @id @default(uuid())
+  createdAt   DateTime @default(now())
+  queryText   String
+  queryType   String
+  filters     Json?
+  limit       Int      @default(20)
+  resultCount Int      @default(0)
+  results     Json?
+  searchTime  Float?
+  userId      String?
+  sessionId   String?
+
+  @@index([createdAt])
+  @@index([queryType])
+  @@map("search_queries")
+}
+
+/// Collections - user-created groups of blobs
+/// For organizing and categorizing content
+model Collection {
+  id          String           @id @default(uuid())
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  name        String
+  description String?
+  color       String?
+  icon        String?
+  createdBy   String?
+  isPublic    Boolean          @default(false)
+  items       CollectionItem[]
+
+  @@index([createdBy])
+  @@index([createdAt])
+  @@map("collections")
+}
+
+/// Junction table for many-to-many relationship
+/// between Collections and Blobs
+model CollectionItem {
+  id           String     @id @default(uuid())
+  createdAt    DateTime   @default(now())
+  collectionId String
+  blobId       String
+  order        Int        @default(0)
+  notes        String?
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
+  @@unique([collectionId, blobId])
+  @@index([collectionId])
+  @@index([blobId])
+  @@map("collection_items")
+}
+
+/// Processing jobs queue
+/// Track background processing tasks
+model ProcessingJob {
+  id             String    @id @default(uuid())
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  startedAt      DateTime?
+  completedAt    DateTime?
+  jobType        String
+  status         String    @default("pending")
+  priority       Int       @default(5)
+  blobId         String
+  result         Json?
+  error          String?
+  retryCount     Int       @default(0)
+  maxRetries     Int       @default(3)
+  processingTime Float?
+
+  @@index([status])
+  @@index([jobType])
+  @@index([blobId])
+  @@index([createdAt])
+  @@map("processing_jobs")
+}
+
+/// Face instances detected in images
+/// Stores face bounding boxes and ArcFace embeddings for each detected face
+/// Multiple faces can be detected per image
+model FaceInstance {
+  id              String                @id @default(uuid())
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  blobId          String
+  blob            Blob                  @relation(fields: [blobId], references: [id], onDelete: Cascade)
+  boundingBox     Json
+  embedding       Unsupported("vector(512)")
+  confidence      Float?
+  quality         Float?
+  sharpness       Float?
+  brightness      Float?
+  facingAngle     Float?
+  personId        String?
+  person          Person?               @relation(fields: [personId], references: [id], onDelete: SetNull)
+  detectorModel   String                @default("retinaface")
+  embeddingModel  String                @default("arcface")
+
+  @@index([blobId])
+  @@index([personId])
+  @@map("face_instances")
+}
+
+/// Person entity for face recognition
+/// Represents unique individuals identified across multiple images
+model Person {
+  id        String         @id @default(uuid())
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  name      String?
+  notes     String?
+  thumbnail String?
+  faceCount Int            @default(0)
+  tags      String[]
+  faces     FaceInstance[]
+
+  @@index([name])
+  @@map("persons")
+}

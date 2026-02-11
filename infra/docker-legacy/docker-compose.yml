@@ -1,0 +1,175 @@
+# Docker Compose for CBIS Python Services
+# All microservices for Content-Based Image Search
+
+name: cbis-stack
+
+services:
+  # CLIP Service - Image Embeddings and Captions
+  clip:
+    build:
+      context: ./CLIP
+      dockerfile: Dockerfile
+    container_name: cbis-clip
+    ports:
+      - "8000:8000"
+    environment:
+      - CLIP_MODEL_NAME=openai/clip-vit-base-patch32
+      - BLIP_MODEL_NAME=Salesforce/blip-image-captioning-base
+    volumes:
+      - clip-cache:/root/.cache/huggingface
+    restart: unless-stopped
+    networks:
+      - cbis-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Type Router V2 - Image Classification (CLIP + Random Forest)
+  type-router-v2:
+    build:
+      context: ./TYPE_ROUTER_V2
+      dockerfile: Dockerfile
+    container_name: cbis-type-router-v2
+    ports:
+      - "8001:8001"
+    environment:
+      - USE_DUMMY_ROUTER=false
+      - MODEL_PATH=outputs/ovr_rf_clip_model.joblib
+      - CLIP_MODEL=openai/clip-vit-base-patch32
+      - THRESHOLD=0.5
+    volumes:
+      - type-router-v2-cache:/root/.cache/huggingface
+      - ./TYPE_ROUTER_V2/outputs:/app/outputs:ro
+    restart: unless-stopped
+    networks:
+      - cbis-network
+    depends_on:
+      - clip
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8001/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # NIMA - Image Quality Assessment
+  nima:
+    build:
+      context: ./NIMA
+      dockerfile: Dockerfile
+    container_name: cbis-nima
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./NIMA/mobilenet_nima.h5:/app/mobilenet_nima.h5:ro
+    restart: unless-stopped
+    networks:
+      - cbis-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8002/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Query Optimizer - Search Query Enhancement
+  query-optimizer:
+    build:
+      context: ./query_optimizer
+      dockerfile: Dockerfile
+    container_name: cbis-query-optimizer
+    ports:
+      - "8003:8003"
+    environment:
+      - USE_DUMMY_QUERY_OPTIMIZER=false
+    restart: unless-stopped
+    networks:
+      - cbis-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8003/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Search Router - Search Strategy Determination
+  search-router:
+    build:
+      context: ./search_router
+      dockerfile: Dockerfile
+    container_name: cbis-search-router
+    ports:
+      - "8004:8004"
+    environment:
+      - USE_DUMMY_SEARCH_ROUTER=false
+    restart: unless-stopped
+    networks:
+      - cbis-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8004/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Face Detection - Face Detection and Recognition
+  face-detection:
+    build:
+      context: ./FACE_DETECTION
+      dockerfile: Dockerfile
+    container_name: cbis-face-detection
+    ports:
+      - "8005:8005"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - RECOGNITION_THRESHOLD=0.4
+      - MIN_CONFIDENCE=0.6
+      - MIN_FACE_SIZE=40
+      - STORAGE_BASE_PATH=/app/storage
+    volumes:
+      # Mount storage for image access (read-only)
+      - ./next-js/storage:/app/storage:ro
+      # Cache InsightFace models
+      - insightface-models:/root/.insightface
+      # Face crops output
+      - ./FACE_DETECTION/face_crops:/app/face_crops
+    restart: unless-stopped
+    networks:
+      - cbis-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8005/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Type Router V1 (Legacy) - Optional, comment out if not needed
+  # type-router-v1:
+  #   build:
+  #     context: ./TYPE_ROUTER
+  #     dockerfile: Dockerfile
+  #   container_name: cbis-type-router-v1
+  #   ports:
+  #     - "8006:8001"
+  #   environment:
+  #     - USE_DUMMY_ROUTER=false
+  #   volumes:
+  #     - ./TYPE_ROUTER/image_attribute_router.keras:/app/image_attribute_router.keras:ro
+  #   restart: unless-stopped
+  #   networks:
+  #     - cbis-network
+
+networks:
+  cbis-network:
+    driver: bridge
+
+volumes:
+  clip-cache:
+    driver: local
+  type-router-v2-cache:
+    driver: local
+  insightface-models:
+    driver: local

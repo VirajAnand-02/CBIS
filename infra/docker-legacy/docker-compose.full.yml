@@ -1,0 +1,166 @@
+name: cbis-stack
+
+services:
+  # Face Detection Service
+  face-detection:
+    build:
+      context: ./FACE_DETECTION
+      dockerfile: Dockerfile
+    container_name: cbis-face-detection
+    ports:
+      - "8005:8005"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - RECOGNITION_THRESHOLD=0.4
+      - MIN_CONFIDENCE=0.6
+      - MIN_FACE_SIZE=40
+    volumes:
+      # Mount storage for image access
+      - ./next-js/storage:/app/storage:ro
+      # Cache InsightFace models
+      - insightface-models:/root/.insightface
+    networks:
+      - cbis-network
+    depends_on:
+      - postgres
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # CLIP Service
+  clip:
+    build:
+      context: ./CLIP
+      dockerfile: Dockerfile
+    container_name: cbis-clip
+    ports:
+      - "8000:8000"
+    volumes:
+      - huggingface-cache:/root/.cache/huggingface
+    networks:
+      - cbis-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # Type Router V2 Service
+  type-router-v2:
+    build:
+      context: ./TYPE_ROUTER_V2
+      dockerfile: Dockerfile
+    container_name: cbis-type-router-v2
+    ports:
+      - "8001:8001"
+    volumes:
+      - huggingface-cache:/root/.cache/huggingface
+    networks:
+      - cbis-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # NIMA Service
+  nima:
+    build:
+      context: ./NIMA
+      dockerfile: Dockerfile
+    container_name: cbis-nima
+    ports:
+      - "8002:8002"
+    networks:
+      - cbis-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # Query Optimizer Service
+  query-optimizer:
+    build:
+      context: ./query_optimizer
+      dockerfile: Dockerfile
+    container_name: cbis-query-optimizer
+    ports:
+      - "8003:8003"
+    networks:
+      - cbis-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # Search Router Service
+  search-router:
+    build:
+      context: ./search_router
+      dockerfile: Dockerfile
+    container_name: cbis-search-router
+    ports:
+      - "8004:8004"
+    environment:
+      - CLIP_SERVICE_URL=http://clip:8000
+      - TYPE_ROUTER_URL=http://type-router-v2:8001
+      - NIMA_SERVICE_URL=http://nima:8002
+      - QUERY_OPTIMIZER_URL=http://query-optimizer:8003
+    networks:
+      - cbis-network
+    depends_on:
+      - clip
+      - type-router-v2
+      - nima
+      - query-optimizer
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # PostgreSQL Database
+  postgres:
+    image: ankane/pgvector:latest
+    container_name: cbis-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-cbis}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-cbis123}
+      - POSTGRES_DB=${POSTGRES_DB:-cbis}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - cbis-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cbis}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+networks:
+  cbis-network:
+    driver: bridge
+
+volumes:
+  # Model caches
+  huggingface-cache:
+    driver: local
+  insightface-models:
+    driver: local
+  # Database
+  postgres-data:
+    driver: local

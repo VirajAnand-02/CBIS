@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+httpx
+pillow
+numpy
+requests
+pydantic
+tensorflow[and-cuda]==2.20.0

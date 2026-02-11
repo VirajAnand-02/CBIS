@@ -1,61 +1,72 @@
-# Test CBIS Preprocessing Pipeline
-# This script tests each service individually
+﻿# Test CBIS Services
 
-Write-Host "🧪 Testing CBIS Services..." -ForegroundColor Green
+Write-Host "Testing CBIS services..." -ForegroundColor Green
 Write-Host ""
 
-# Test 1: CLIP Service
-Write-Host "1️⃣  Testing CLIP Service (http://localhost:8000)..." -ForegroundColor Cyan
+# CLIP
+Write-Host "1. CLIP (:8000)" -ForegroundColor Cyan
 try {
     $clipHealth = Invoke-RestMethod -Uri "http://localhost:8000/health" -Method GET
-    Write-Host "   ✅ CLIP Service is running on $($clipHealth.device)" -ForegroundColor Green
+    Write-Host "   OK: CLIP running ($($clipHealth.device))" -ForegroundColor Green
 } catch {
-    Write-Host "   ❌ CLIP Service is not responding" -ForegroundColor Red
-    Write-Host "   Run: cd clip; python -m uvicorn app:app --host 0.0.0.0 --port 8000" -ForegroundColor Yellow
+    Write-Host "   FAIL: CLIP not responding" -ForegroundColor Red
+    Write-Host "   Run: cd services\\clip; conda activate clip-env; python -m uvicorn app:app --host 0.0.0.0 --port 8000" -ForegroundColor Yellow
 }
 Write-Host ""
 
-# Test 2: Type Router Service
-Write-Host "2️⃣  Testing Type Router Service (http://localhost:8001)..." -ForegroundColor Cyan
+# Type Router V2
+Write-Host "2. Type Router V2 (:8001)" -ForegroundColor Cyan
 try {
     $routerHealth = Invoke-RestMethod -Uri "http://localhost:8001/health" -Method GET
-    Write-Host "   ✅ Type Router is running" -ForegroundColor Green
-    Write-Host "   Attributes: $($routerHealth.attributes -join ', ')" -ForegroundColor Gray
+    Write-Host "   OK: Type Router V2 running" -ForegroundColor Green
+    Write-Host "   Labels: $($routerHealth.labels -join ', ')" -ForegroundColor Gray
 } catch {
-    Write-Host "   ❌ Type Router is not responding" -ForegroundColor Red
-    Write-Host "   Run: cd TYPE_ROUTER; python type_router_service.py" -ForegroundColor Yellow
+    Write-Host "   FAIL: Type Router V2 not responding" -ForegroundColor Red
+    Write-Host "   Run: cd services\\type-router-v2; conda activate clip-env; python type_router_service_v2.py" -ForegroundColor Yellow
 }
 Write-Host ""
 
-# Test 3: Next.js Application
-Write-Host "3️⃣  Testing Next.js Application (http://localhost:3000)..." -ForegroundColor Cyan
+# NIMA
+Write-Host "3. NIMA (:8002)" -ForegroundColor Cyan
+try {
+    $nimaHealth = Invoke-RestMethod -Uri "http://localhost:8002/health" -Method GET
+    Write-Host "   OK: NIMA running" -ForegroundColor Green
+} catch {
+    Write-Host "   FAIL: NIMA not responding" -ForegroundColor Red
+    Write-Host "   Run: cd services\\nima; conda activate nima; python -m uvicorn app:app --host 0.0.0.0 --port 8002" -ForegroundColor Yellow
+}
+Write-Host ""
+
+# Search Pipeline
+Write-Host "4. Search Pipeline (:8003)" -ForegroundColor Cyan
+try {
+    $spHealth = Invoke-RestMethod -Uri "http://localhost:8003/health" -Method GET
+    Write-Host "   OK: Search Pipeline running" -ForegroundColor Green
+} catch {
+    Write-Host "   FAIL: Search Pipeline not responding" -ForegroundColor Red
+    Write-Host "   Run: cd services\\search-pipeline; conda activate clip-env; python app.py" -ForegroundColor Yellow
+}
+Write-Host ""
+
+# Face Detection
+Write-Host "5. Face Detection (:8005)" -ForegroundColor Cyan
+try {
+    $fdHealth = Invoke-RestMethod -Uri "http://localhost:8005/health" -Method GET
+    Write-Host "   OK: Face Detection running" -ForegroundColor Green
+} catch {
+    Write-Host "   FAIL: Face Detection not responding" -ForegroundColor Red
+    Write-Host "   Run: cd services\\face-detection; conda activate arcface; python app.py" -ForegroundColor Yellow
+}
+Write-Host ""
+
+# Next.js
+Write-Host "6. Next.js (:3000)" -ForegroundColor Cyan
 try {
     $response = Invoke-WebRequest -Uri "http://localhost:3000" -Method GET -TimeoutSec 5
     if ($response.StatusCode -eq 200) {
-        Write-Host "   ✅ Next.js Application is running" -ForegroundColor Green
+        Write-Host "   OK: Next.js running" -ForegroundColor Green
     }
 } catch {
-    Write-Host "   ❌ Next.js Application is not responding" -ForegroundColor Red
-    Write-Host "   Run: cd next-js; npm run dev" -ForegroundColor Yellow
+    Write-Host "   FAIL: Next.js not responding" -ForegroundColor Red
+    Write-Host "   Run: cd apps\\next-js; npm run dev" -ForegroundColor Yellow
 }
-Write-Host ""
-
-# Test 4: Preprocessing API
-Write-Host "4️⃣  Testing Preprocessing API..." -ForegroundColor Cyan
-try {
-    $status = Invoke-RestMethod -Uri "http://localhost:3000/api/preprocessing" -Method GET
-    Write-Host "   ✅ Preprocessing API is available" -ForegroundColor Green
-    Write-Host "   Current queue: $($status.count) jobs" -ForegroundColor Gray
-} catch {
-    Write-Host "   ❌ Preprocessing API is not responding" -ForegroundColor Red
-}
-Write-Host ""
-
-Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Gray
-Write-Host ""
-Write-Host "📝 To test the full pipeline:" -ForegroundColor Yellow
-Write-Host "   1. Upload an image at http://localhost:3000" -ForegroundColor White
-Write-Host "   2. Watch the 'Processing - X' counter in the sidebar" -ForegroundColor White
-Write-Host "   3. Check the logs in each service terminal" -ForegroundColor White
-Write-Host "   4. Find results in: next-js/storage/blobs/{blobId}.processing.json" -ForegroundColor White
-Write-Host ""

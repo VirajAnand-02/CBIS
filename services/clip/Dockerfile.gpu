@@ -1,0 +1,54 @@
+# Dockerfile.gpu
+# CUDA-enabled Dockerfile for the CLIP service (uses CUDA 12.9 runtime)
+FROM nvidia/cuda:12.9.0-runtime-ubuntu24.04
+
+# Set working directory
+WORKDIR /app
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install system deps (python, pip, build tools required by some wheels, and libs used by pillow/ffmpeg)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 python3-venv python3-pip \
+    build-essential ca-certificates wget git \
+    libgl1 libglib2.0-0 ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Bypass externally-managed-environment restriction (single-app container)
+RUN python3 -m pip install --break-system-packages --upgrade pip || true
+RUN python3 -m pip install --break-system-packages --upgrade setuptools || true
+RUN python3 -m pip install --break-system-packages --upgrade wheel || true
+
+# Copy requirements and app
+COPY requirements.txt /app/requirements.txt
+COPY app.py /app/app.py
+
+# Install python dependencies with --break-system-packages
+# 1) Install everything from requirements.txt except 'torch' (if present).
+# 2) Then install the CUDA-specific torch wheel from the official PyTorch index.
+RUN set -eux; \
+    # If requirements.txt contains a torch line, remove it to avoid installing the cpu wheel
+    if grep -qE '^torch([<>=].*)?$' /app/requirements.txt 2>/dev/null; then \
+        sed '/^torch/Id' /app/requirements.txt > /tmp/reqs_no_torch.txt; \
+        pip install --break-system-packages --no-cache-dir -r /tmp/reqs_no_torch.txt; \
+    else \
+        pip install --break-system-packages --no-cache-dir -r /app/requirements.txt; \
+    fi; \
+    # Install CUDA-compatible PyTorch (match +cu124 to this base image)
+    pip install --break-system-packages --no-cache-dir "torch==2.6.0+cu124" --index-url https://download.pytorch.org/whl/cu124
+
+# Optional: if you need torchvision/torchaudio, add similar installs:
+# RUN pip --no-cache-dir install "torchvision==0.21.0+cu124" --index-url https://download.pytorch.org/whl/cu124
+
+# Expose port
+EXPOSE 8000
+
+# Health check (uses requests from requirements)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD python3 -c "import requests; r = requests.get('http://localhost:8000/health'); exit(0 if r.status_code==200 else 1)" || exit 1
+
+# Run the application
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+
+# docker build -f Dockerfile.gpu -t cbis-clip-gpu .
+# docker run --gpus all -p 8000:8000 cbis-clip-gpu
+
